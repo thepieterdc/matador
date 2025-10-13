@@ -38,6 +38,9 @@ RUN pnpm run build
 
 FROM node:22-alpine
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Create a non-root user (Alpine uses addgroup and adduser)
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
@@ -47,5 +50,10 @@ COPY --from=build-env /app/build /app/build
 WORKDIR /app
 RUN chown -R appuser:appgroup /app
 EXPOSE 5173
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5173/health || exit 1
+
 USER appuser
 CMD ["pnpm", "run", "start"]
