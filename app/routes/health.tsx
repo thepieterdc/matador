@@ -1,8 +1,6 @@
 import { getRedisConnection } from "~/utils/redis.server";
 
 export async function loader() {
-  const startTime = Date.now();
-
   try {
     const redis = getRedisConnection();
 
