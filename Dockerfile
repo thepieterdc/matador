@@ -1,21 +1,35 @@
-FROM node:22-alpine AS development-dependencies-env
+FROM node:22-slim AS development-dependencies-env
 
 # Setup pnpm.
+ENV CI=true
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
 COPY . /app
 WORKDIR /app
-RUN pnpm ci
+RUN pnpm install --frozen-lockfile
 
-FROM node:22-alpine AS production-dependencies-env
+FROM node:22-slim AS production-dependencies-env
+
+# Setup pnpm.
+ENV CI=true
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
 COPY ./package.json pnpm-lock.yaml /app/
 WORKDIR /app
-RUN pnpm fetch
-RUN pnpm ci --omit=dev
+RUN pnpm install --frozen-lockfile --prod
 
-FROM node:22-alpine AS build-env
+FROM node:22-slim AS build-env
+
+# Setup pnpm.
+ENV CI=true
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
