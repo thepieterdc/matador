@@ -49,4 +49,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ inputs.tag }}
+          tags: thepieterdc/matador:${{ inputs.tag }}
