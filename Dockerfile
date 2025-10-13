@@ -1,4 +1,5 @@
 FROM node:22-alpine AS development-dependencies-env
+RUN npm install -g corepack@latest && corepack enable && corepack prepare pnpm@10.2.1 --activate
 COPY . /app
 WORKDIR /app
 RUN pnpm ci
