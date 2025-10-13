@@ -1,18 +1,18 @@
 FROM node:22-alpine AS development-dependencies-env
 COPY . /app
 WORKDIR /app
-RUN npm ci
+RUN pnpm ci
 
 FROM node:22-alpine AS production-dependencies-env
 COPY ./package.json pnpm-lock.yaml /app/
 WORKDIR /app
-RUN npm ci --omit=dev
+RUN pnpm ci --omit=dev
 
 FROM node:22-alpine AS build-env
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
-RUN npm run build
+RUN pnpm run build
 
 FROM node:22-alpine
 
@@ -26,4 +26,4 @@ WORKDIR /app
 RUN chown -R appuser:appgroup /app
 EXPOSE 5173
 USER appuser
-CMD ["npm", "run", "start"]
+CMD ["pnpm", "run", "start"]

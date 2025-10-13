@@ -58,7 +58,7 @@ jobs:
         run: pnpm run build
 
   docker-build:
-    name: Docker Build Test
+    name: Docker Build
     runs-on: ubuntu-latest
 
     steps:
