@@ -6,8 +6,8 @@ export function getRedisConnection(): Redis {
   if (!redis) {
     const redisUrl = process.env.REDIS_URL || "redis://localhost:6379/0";
     redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: null,
       enableReadyCheck: false,
+      maxRetriesPerRequest: 3,
     });
   }
   return redis;

@@ -51,9 +51,9 @@ WORKDIR /app
 RUN chown -R appuser:appgroup /app
 EXPOSE 5173
 
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5173/health || exit 1
+# App configuration
+ENV HOST=0.0.0.0
+ENV PORT=5173
 
 USER appuser
-CMD ["pnpm", "run", "start"]
+CMD ["npm", "run", "start"]
