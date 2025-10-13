@@ -16,13 +16,14 @@ RUN npm run build
 
 FROM node:22-alpine
 
-# Create a non-root user
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+# Create a non-root user (Alpine uses addgroup and adduser)
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 COPY ./package.json pnpm-lock.yaml /app/
 COPY --from=production-dependencies-env /app/node_modules /app/node_modules
 COPY --from=build-env /app/build /app/build
 WORKDIR /app
+RUN chown -R appuser:appgroup /app
 EXPOSE 5173
 USER appuser
 CMD ["npm", "run", "start"]
