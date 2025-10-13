@@ -9,7 +9,7 @@
     "build": "react-router build",
     "start": "react-router-serve ./build/server/index.js",
     "lint": "eslint .",
-    "typecheck": "tsc"
+    "typecheck": "pnpm run build && tsc"
   },
   "keywords": [],
   "author": {
