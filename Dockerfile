@@ -1,5 +1,10 @@
 FROM node:22-alpine AS development-dependencies-env
-RUN npm install -g corepack@latest && corepack enable && corepack prepare pnpm@10.2.1 --activate
+
+# Setup pnpm.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
 COPY . /app
 WORKDIR /app
 RUN pnpm ci
@@ -7,12 +12,14 @@ RUN pnpm ci
 FROM node:22-alpine AS production-dependencies-env
 COPY ./package.json pnpm-lock.yaml /app/
 WORKDIR /app
+RUN pnpm fetch
 RUN pnpm ci --omit=dev
 
 FROM node:22-alpine AS build-env
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
+RUN pnpm fetch
 RUN pnpm run build
 
 FROM node:22-alpine
