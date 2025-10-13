@@ -26,7 +26,6 @@ export async function loader() {
       },
     );
   } catch (error) {
-    const responseTime = Date.now() - startTime;
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
 
