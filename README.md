@@ -7,7 +7,8 @@ A modern BullMQ dashboard for monitoring and managing job queues. Built with Rea
 - 📊 Real-time queue monitoring
 - 🔍 Detailed job inspection with data, errors, and stack traces
 - 📈 Job statistics (waiting, active, completed, failed, delayed)
-- 🎯 Built with React Router 7 (framework mode with SSR)
+- � Health check endpoint for monitoring
+- �🎯 Built with React Router 7 (framework mode with SSR)
 - ⚡ Fast and responsive UI with Tailwind CSS
 
 ## Prerequisites
@@ -19,17 +20,20 @@ A modern BullMQ dashboard for monitoring and managing job queues. Built with Rea
 ## Quick Start
 
 1. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
 2. **Configure Redis connection:**
+
    ```bash
    cp .env.example .env
    # Edit .env and set your REDIS_URL (default: redis://localhost:6379/0)
    ```
 
 3. **Start development server:**
+
    ```bash
    pnpm dev
    ```
@@ -61,6 +65,47 @@ app/
 ## Environment Variables
 
 - `REDIS_URL` - Redis connection URL (default: `redis://localhost:6379/0`)
+
+## Health Check
+
+The application provides a health check endpoint at `/health` that validates the Redis connection.
+
+**Endpoint:** `GET /health`
+
+**Successful response (HTTP 200):**
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-10-13T12:00:00.000Z",
+  "checks": {
+    "redis": {
+      "status": "up",
+      "responseTime": "5ms"
+    }
+  }
+}
+```
+
+**Failed response (HTTP 503):**
+
+```json
+{
+  "status": "unhealthy",
+  "timestamp": "2025-10-13T12:00:00.000Z",
+  "checks": {
+    "redis": {
+      "status": "down",
+      "error": "Connection refused",
+      "responseTime": "100ms"
+    }
+  }
+}
+```
+
+### Docker Healthcheck
+
+When running in Docker, the container includes an automatic healthcheck that pings the `/health` endpoint every 30 seconds.
 
 ## License
 
