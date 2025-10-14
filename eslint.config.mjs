@@ -34,6 +34,13 @@ export default [
       ],
     },
   },
+  // Override for scripts directory
+  {
+    files: ["scripts/**/*.{js,mjs,cjs,ts,jsx,tsx}"],
+    rules: {
+      "no-console": "off",
+    },
+  },
   {
     plugins: {
       "@stylistic/js": stylisticJs,
