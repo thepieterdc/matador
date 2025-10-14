@@ -7,7 +7,7 @@ const processingTime = parseInt(process.argv[3] || "10000", 10); // Default 10 s
 
 const connection = new Redis(REDIS_URL, {
   enableReadyCheck: false,
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null, // Required for BullMQ workers
 });
 
 console.log(`Starting worker for queue: ${queueName}`);
@@ -19,12 +19,20 @@ const worker = new Worker(
     console.log(`\n[${new Date().toISOString()}] Processing job: ${job.name} (ID: ${job.id})`);
     console.log(`Data:`, JSON.stringify(job.data, null, 2));
 
-    const steps = 10;
-    for (let i = 1; i <= steps; i++) {
-      await new Promise(resolve => setTimeout(resolve, processingTime / steps));
-      const progress = (i / steps) * 100;
-      await job.updateProgress(progress);
-      console.log(`  Progress: ${progress.toFixed(0)}%`);
+    // Randomly decide whether to report progress (50% chance)
+    const reportProgress = Math.random() > 0.5;
+
+    if (reportProgress) {
+      const steps = 10;
+      for (let i = 1; i <= steps; i++) {
+        await new Promise(resolve => setTimeout(resolve, processingTime / steps));
+        const progress = (i / steps) * 100;
+        await job.updateProgress(progress);
+        console.log(`  Progress: ${progress.toFixed(0)}%`);
+      }
+    } else {
+      console.log(`  Processing (no progress updates)...`);
+      await new Promise(resolve => setTimeout(resolve, processingTime));
     }
 
     console.log(`✓ Completed job: ${job.name}`);

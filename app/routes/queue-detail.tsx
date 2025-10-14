@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Form, Link, redirect } from "react-router";
+import { useState, useEffect } from "react";
+import { Form, Link, redirect, useRevalidator } from "react-router";
 import {
   getQueueStats,
   getQueueJobs,
+  getRepeatableJobs,
   removeJob,
   retryJob,
 } from "../utils/bullmq.server";
@@ -16,25 +17,28 @@ export async function loader({ params }: Route.LoaderArgs) {
   const queueName = params.queueName!;
 
   try {
-    const [stats, waitingJobs, runningJobs, delayedJobs] = await Promise.all([
-      getQueueStats(queueName),
-      getQueueJobs(queueName, "waiting", 0, 49),
-      getQueueJobs(queueName, "running", 0, 49),
-      getQueueJobs(queueName, "delayed", 0, 49),
-    ]);
+    const [stats, waitingJobs, runningJobs, delayedJobs, cronJobs] =
+      await Promise.all([
+        getQueueStats(queueName),
+        getQueueJobs(queueName, "waiting", 0, 49),
+        getQueueJobs(queueName, "running", 0, 49),
+        getQueueJobs(queueName, "delayed", 0, 49),
+        getRepeatableJobs(queueName),
+      ]);
 
-    // Combine all jobs with their status
+    // Combine all jobs with their status (excluding cron jobs)
     const jobs = [
       ...waitingJobs.map(j => ({ ...j, status: "waiting" })),
       ...runningJobs.map(j => ({ ...j, status: "running" })),
       ...delayedJobs.map(j => ({ ...j, status: "delayed" })),
     ].sort((a, b) => b.timestamp - a.timestamp);
 
-    return { stats, jobs, error: null };
+    return { stats, jobs, cronJobs, error: null };
   } catch {
     return {
       stats: null,
       jobs: [],
+      cronJobs: [],
       error:
         "Failed to load queue details. Please check your Redis connection.",
     };
@@ -69,9 +73,9 @@ export async function action({ params, request }: Route.ActionArgs) {
 function getStatusColor(status: string) {
   switch (status) {
     case "completed":
-      return "bg-green-100 text-green-800";
+      return "bg-emerald-100 text-emerald-800";
     case "running":
-      return "bg-blue-100 text-blue-800";
+      return "bg-green-100 text-green-800";
     case "waiting":
       return "bg-yellow-100 text-yellow-800";
     case "failed":
@@ -87,12 +91,112 @@ export default function QueueDetail({
   loaderData,
   params,
 }: Route.ComponentProps) {
-  const { stats, jobs, error } = loaderData;
+  const { stats, jobs, cronJobs, error } = loaderData;
   const queueName = params.queueName || "";
+  const revalidator = useRevalidator();
   const [selectedJobNames, setSelectedJobNames] = useState<string[]>([]);
   const [jobNameInput, setJobNameInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [expandedCronJobs, setExpandedCronJobs] = useState<Set<string>>(
+    new Set(),
+  );
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  const toggleJobData = (jobId: string) => {
+    setExpandedJobs(prev => {
+      const next = new Set(prev);
+      if (next.has(jobId)) {
+        next.delete(jobId);
+      } else {
+        next.add(jobId);
+      }
+      return next;
+    });
+  };
+
+  // Update current time every second for countdown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-refresh jobs data every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      revalidator.revalidate();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [revalidator]);
+
+  // Revalidate data when any cron job's next execution passes
+  useEffect(() => {
+    if (cronJobs.length === 0) return;
+
+    const nextExecution = Math.min(
+      ...cronJobs
+        .map(job => job.next)
+        .filter((next): next is number => next != null),
+    );
+
+    if (!isFinite(nextExecution)) return;
+
+    const timeUntilNext = nextExecution - Date.now();
+
+    // Only set timeout if the job hasn't executed yet
+    if (timeUntilNext <= 0) return;
+
+    // Revalidate data when next job executes (add 2 seconds buffer)
+    const timeout = setTimeout(() => {
+      revalidator.revalidate();
+    }, timeUntilNext + 2000);
+
+    return () => clearTimeout(timeout);
+  }, [cronJobs, revalidator]); // Only re-run when cronJobs change
+
+  const toggleCronJob = (key: string) => {
+    setExpandedCronJobs(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const formatTimeRemaining = (milliseconds: number): string => {
+    if (milliseconds <= 0) return "Running...";
+
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      const remainingHours = hours % 24;
+      return `${days}d ${remainingHours}h`;
+    } else if (hours > 0) {
+      const remainingMinutes = minutes % 60;
+      return `${hours}h ${remainingMinutes}m`;
+    } else if (minutes > 0) {
+      const remainingSeconds = seconds % 60;
+      return `${minutes}m ${remainingSeconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
+  // Sort cron jobs by next execution time (nearest first)
+  const sortedCronJobs = [...cronJobs].sort((a, b) => {
+    const aNext = a.next ?? Infinity;
+    const bNext = b.next ?? Infinity;
+    return aNext - bNext;
+  });
 
   // Get unique job names for autocomplete
   const uniqueJobNames = Array.from(new Set(jobs.map(job => job.name))).sort();
@@ -110,6 +214,25 @@ export default function QueueDetail({
       selectedJobNames.length === 0 || selectedJobNames.includes(job.name);
     const statusMatch = statusFilter === "all" || job.status === statusFilter;
     return nameMatch && statusMatch;
+  });
+
+  // Sort jobs: running first, then waiting, then delayed
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    const statusPriority = {
+      running: 0,
+      waiting: 1,
+      delayed: 2,
+      failed: 3,
+      completed: 4,
+    };
+    const aPriority = statusPriority[a.status as keyof typeof statusPriority] ?? 99;
+    const bPriority = statusPriority[b.status as keyof typeof statusPriority] ?? 99;
+
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+
+    return b.timestamp - a.timestamp;
   });
 
   const addJobName = (name: string) => {
@@ -192,7 +315,7 @@ export default function QueueDetail({
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center gap-2 mb-2">
               <svg
-                className="w-5 h-5 text-blue-600"
+                className="w-5 h-5 text-green-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -212,7 +335,7 @@ export default function QueueDetail({
               </svg>
               <div className="text-sm text-gray-600">Running</div>
             </div>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-green-600">
               {stats.running}
             </div>
           </div>
@@ -261,7 +384,9 @@ export default function QueueDetail({
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-lg shadow-md p-6">
         <div className="mb-4">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Jobs</h2>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -371,8 +496,8 @@ export default function QueueDetail({
           </div>
         </div>
 
-        <div className="space-y-4">
-          {filteredJobs.length === 0 ? (
+        <div className="space-y-3">
+          {sortedJobs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <p>
                 {jobs.length === 0
@@ -381,24 +506,43 @@ export default function QueueDetail({
               </p>
             </div>
           ) : (
-            filteredJobs.map(job => {
+            sortedJobs.map(job => {
               const isCronJob = !!job.repeatJobKey;
+              const isExpanded = expandedJobs.has(job.id);
+              const isRunning = job.status === "running";
+
               return (
                 <div
                   key={job.id}
-                  className={`border rounded-lg p-4 ${isCronJob ? "border-indigo-300 bg-indigo-50" : "border-gray-200"}`}
+                  className={`border rounded-lg transition-all ${
+                    isCronJob
+                      ? "border-indigo-300 bg-indigo-50"
+                      : isRunning
+                        ? "border-green-300 bg-green-50 p-4"
+                        : "border-gray-200 p-3"
+                  }`}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm text-gray-600">
+                        <span className="font-mono text-xs text-gray-600">
                           #{job.id}
                         </span>
-                        <span className="text-sm font-medium text-gray-700">
+                        <span className="text-sm font-medium text-gray-900 truncate">
                           {job.name}
                         </span>
-                        {isCronJob && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-300">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}
+                        >
+                          {job.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">
+                          {new Date(job.timestamp).toLocaleString()}
+                        </span>
+                        {job.attemptsMade > 0 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
                             <svg
                               className="w-3 h-3 mr-1"
                               fill="none"
@@ -409,55 +553,72 @@ export default function QueueDetail({
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={2}
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                               />
                             </svg>
-                            Cron Job
-                          </span>
-                        )}
-                        {!isCronJob && (
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}
-                          >
-                            {job.status}
+                            Retry {job.attemptsMade}
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {new Date(job.timestamp).toLocaleString()}
-                      </div>
-                      {isCronJob && job.repeatPattern && (
-                        <div className="mt-2 space-y-1">
-                          <div className="text-xs text-indigo-700 font-medium">
-                            Pattern:{" "}
-                            <span className="font-mono bg-indigo-100 px-1.5 py-0.5 rounded">
-                              {job.repeatPattern}
-                            </span>
-                          </div>
-                          {job.repeatNextTime && (
-                            <div className="text-xs text-indigo-700">
-                              Next run:{" "}
-                              <span className="font-medium">
-                                {new Date(job.repeatNextTime).toLocaleString()}
-                              </span>
-                            </div>
+                      {isRunning && (
+                        <div className="mt-2">
+                          {job.progress > 0 ? (
+                            <>
+                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span>Progress</span>
+                                <span>{job.progress}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-green-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${job.progress}%` }}
+                                ></div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span>Processing</span>
+                                <span className="text-green-600 font-medium">
+                                  Running...
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                <div className="bg-green-500 h-2 rounded-full animate-pulse w-full opacity-50"></div>
+                              </div>
+                            </>
                           )}
                         </div>
                       )}
-                      {job.attemptsMade > 0 && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Attempts: {job.attemptsMade}
-                        </div>
-                      )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 ml-2">
+                      {!isRunning && !isCronJob && (
+                        <button
+                          onClick={() => toggleJobData(job.id)}
+                          className="text-xs text-gray-600 hover:text-gray-900"
+                        >
+                          <svg
+                            className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </button>
+                      )}
                       {job.status === "failed" && (
                         <Form method="post">
                           <input type="hidden" name="action" value="retry" />
                           <input type="hidden" name="jobId" value={job.id} />
                           <button
                             type="submit"
-                            className="text-sm text-blue-600 hover:text-blue-800"
+                            className="text-xs text-blue-600 hover:text-blue-800"
                           >
                             Retry
                           </button>
@@ -466,70 +627,241 @@ export default function QueueDetail({
                       {(job.status === "waiting" ||
                         job.status === "running" ||
                         job.status === "delayed") &&
-                        (isCronJob ? (
-                          <div
-                            className="text-sm text-gray-400 cursor-not-allowed"
-                            title="Cron jobs cannot be removed"
-                          >
-                            {job.status === "running" ? "Cancel" : "Remove"}
-                          </div>
-                        ) : (
+                        !isCronJob && (
                           <Form method="post">
                             <input type="hidden" name="action" value="remove" />
                             <input type="hidden" name="jobId" value={job.id} />
-                            <input
-                              type="hidden"
-                              name="isCronJob"
-                              value="false"
-                            />
                             <button
                               type="submit"
-                              className="text-sm text-red-600 hover:text-red-800"
+                              className="text-xs text-red-600 hover:text-red-800"
                             >
                               {job.status === "running" ? "Cancel" : "Remove"}
                             </button>
                           </Form>
-                        ))}
+                        )}
                     </div>
                   </div>
-                  <div className="bg-gray-50 rounded p-3 mb-2">
-                    <div className="text-xs text-gray-600 mb-1">Job Data:</div>
-                    <pre className="text-xs text-gray-800 font-mono overflow-x-auto">
-                      {JSON.stringify(job.data, null, 2)}
-                    </pre>
-                  </div>
-                  {job.failedReason && (
-                    <div className="bg-red-50 border border-red-200 rounded p-3 mb-2">
-                      <div className="text-xs text-red-600 mb-1">Error:</div>
-                      <div className="text-sm text-red-800">
-                        {job.failedReason}
+
+                  {/* Always show data for running jobs, collapsed for others */}
+                  {(isRunning || isExpanded) && (
+                    <div className="mt-3 space-y-2">
+                      {/* Show retry information if job has been retried */}
+                      {job.attemptsMade > 0 && (
+                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg
+                              className="w-4 h-4 text-orange-600"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              />
+                            </svg>
+                            <div className="text-xs font-semibold text-orange-800">
+                              Retry Information
+                            </div>
+                          </div>
+                          <div className="text-xs text-orange-700 space-y-1">
+                            <div>
+                              Current attempt: <span className="font-semibold">{job.attemptsMade}</span>
+                            </div>
+                            {job.status === "failed" && (
+                              <div className="text-red-700 font-medium mt-1">
+                                Job has failed permanently
+                              </div>
+                            )}
+                            {(job.status === "waiting" || job.status === "delayed") &&
+                              job.attemptsMade > 0 && (
+                                <div className="text-orange-800 font-medium mt-1">
+                                  ⏳ Waiting to retry...
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-gray-50 rounded p-3">
+                        <div className="text-xs text-gray-600 mb-1">
+                          Job Data:
+                        </div>
+                        <pre className="text-xs text-gray-800 font-mono overflow-x-auto">
+                          {JSON.stringify(job.data, null, 2)}
+                        </pre>
                       </div>
-                    </div>
-                  )}
-                  {job.stacktrace && job.stacktrace.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded p-3">
-                      <div className="text-xs text-red-600 mb-1">
-                        Stack Trace:
-                      </div>
-                      <pre className="text-xs text-red-800 font-mono overflow-x-auto">
-                        {job.stacktrace.join("\n")}
-                      </pre>
-                    </div>
-                  )}
-                  {job.returnvalue && (
-                    <div className="bg-green-50 border border-green-200 rounded p-3">
-                      <div className="text-xs text-green-600 mb-1">
-                        Return Value:
-                      </div>
-                      <pre className="text-xs text-green-800 font-mono overflow-x-auto">
-                        {JSON.stringify(job.returnvalue, null, 2)}
-                      </pre>
+                      {job.failedReason && (
+                        <div className="bg-red-50 border border-red-200 rounded p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg
+                              className="w-4 h-4 text-red-600"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <div className="text-xs font-semibold text-red-600">
+                              Error Details
+                              {job.attemptsMade > 0 && job.status !== "failed" && (
+                                <span className="ml-2 text-orange-600">
+                                  (Attempt {job.attemptsMade})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-sm text-red-800">
+                            {job.failedReason}
+                          </div>
+                        </div>
+                      )}
+                      {job.stacktrace && job.stacktrace.length > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded p-3">
+                          <div className="text-xs text-red-600 mb-1">
+                            Stack Trace:
+                          </div>
+                          <pre className="text-xs text-red-800 font-mono overflow-x-auto">
+                            {job.stacktrace.join("\n")}
+                          </pre>
+                        </div>
+                      )}
+                      {job.returnvalue && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
+                          <div className="text-xs text-emerald-600 mb-1">
+                            Return Value:
+                          </div>
+                          <pre className="text-xs text-emerald-800 font-mono overflow-x-auto">
+                            {JSON.stringify(job.returnvalue, null, 2)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               );
             })
           )}
+        </div>
+          </div>
+        </div>
+
+        {/* Cron Jobs Sidebar */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Cron Jobs
+            </h2>
+            {cronJobs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <svg
+                  className="w-12 h-12 mx-auto mb-3 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <p className="text-sm">No cron jobs</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sortedCronJobs.map(cronJob => {
+                  const isExpanded = expandedCronJobs.has(cronJob.key);
+                  const timeRemaining = cronJob.next
+                    ? cronJob.next - currentTime
+                    : null;
+                  const isRunningNow =
+                    timeRemaining !== null && timeRemaining <= 1000;
+
+                  return (
+                    <div
+                      key={cronJob.key}
+                      className={`border rounded-lg p-3 transition-all ${
+                        isRunningNow
+                          ? "border-green-400 bg-green-50"
+                          : "border-gray-200 hover:border-indigo-300"
+                      }`}
+                    >
+                      <div className="mb-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="font-medium text-sm text-gray-900">
+                            {cronJob.name}
+                          </div>
+                          {isRunningNow && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 animate-pulse">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+                              Running
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded mb-1">
+                          {cronJob.pattern}
+                        </div>
+                        {timeRemaining !== null && (
+                          <div
+                            className={`text-xs font-semibold mb-1 ${
+                              isRunningNow
+                                ? "text-green-600"
+                                : timeRemaining < 60000
+                                  ? "text-orange-600"
+                                  : "text-indigo-600"
+                            }`}
+                          >
+                            {formatTimeRemaining(timeRemaining)}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500">
+                          Next:{" "}
+                          {cronJob.next
+                            ? new Date(cronJob.next).toLocaleString()
+                            : "N/A"}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleCronJob(cronJob.key)}
+                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 focus:outline-none"
+                      >
+                        <svg
+                          className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                        {isExpanded ? "Hide" : "Show"} job data
+                      </button>
+                      {isExpanded && (
+                        <div className="mt-2 bg-gray-50 rounded p-2 border border-gray-200">
+                          <pre className="text-xs text-gray-800 font-mono overflow-x-auto whitespace-pre-wrap break-words">
+                            {JSON.stringify(cronJob.data, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </main>

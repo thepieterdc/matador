@@ -14,6 +14,16 @@ async function addCronJobs() {
 
   const cronJobs = [
     {
+      name: "test-every-minute",
+      data: {
+        type: "test-job",
+        description: "Runs every minute for testing",
+      },
+      repeat: {
+        pattern: "* * * * *", // Every minute
+      },
+    },
+    {
       name: "daily-backup",
       data: {
         type: "database-backup",
@@ -110,8 +120,8 @@ async function addCronJobs() {
   console.log(`  Total repeatable jobs in queue: ${repeatableJobs.length}`);
   console.log("\nScheduled jobs:");
   repeatableJobs.forEach(job => {
-    const nextRun = new Date(job.next);
-    console.log(`  - ${job.name}: ${job.pattern} (next: ${nextRun.toLocaleString()})`);
+    const nextRun = job.next ? new Date(job.next).toLocaleString() : "N/A";
+    console.log(`  - ${job.name}: ${job.pattern} (next: ${nextRun})`);
   });
 
   await queue.close();

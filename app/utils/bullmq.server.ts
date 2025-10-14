@@ -34,15 +34,21 @@ export interface QueueStats {
 
 export async function getQueueStats(queueName: string): Promise<QueueStats> {
   const queue = getQueue(queueName);
-  const [waiting, running, completed, failed, delayed, paused] =
+  const [waiting, running, completed, failed, delayedCount, paused] =
     await Promise.all([
       queue.getWaitingCount(),
-      queue.getActiveCount(),
+      queue.getActiveCount(), // BullMQ uses "active" but we call it "running"
       queue.getCompletedCount(),
       queue.getFailedCount(),
       queue.getDelayedCount(),
       queue.isPaused(),
     ]);
+
+  // Get delayed jobs and filter out repeatable jobs
+  const delayedJobs = await queue.getDelayed(0, delayedCount);
+  const nonRepeatableDelayed = delayedJobs.filter(
+    job => !job.opts?.repeat && !job.repeatJobKey,
+  );
 
   return {
     name: queueName,
@@ -50,7 +56,7 @@ export async function getQueueStats(queueName: string): Promise<QueueStats> {
     running,
     completed,
     failed,
-    delayed,
+    delayed: nonRepeatableDelayed.length,
     paused,
   };
 }
@@ -100,7 +106,9 @@ export async function getQueueJobs(
       jobs = await queue.getFailed(start, end);
       break;
     case "delayed":
-      jobs = await queue.getDelayed(start, end);
+      // Get all delayed jobs and filter out repeatable jobs
+      const allDelayed = await queue.getDelayed(start, end);
+      jobs = allDelayed.filter(job => !job.opts?.repeat && !job.repeatJobKey);
       break;
     default:
       jobs = await queue.getWaiting(start, end);
@@ -184,4 +192,33 @@ export async function cleanQueue(
 ): Promise<string[]> {
   const queue = getQueue(queueName);
   return await queue.clean(grace, 1000, status);
+}
+
+export interface RepeatableJobInfo {
+  key: string;
+  name: string;
+  id: string | null | undefined;
+  endDate: number | null;
+  tz: string | null;
+  pattern: string | null | undefined;
+  next: number | undefined;
+  data: Record<string, unknown>;
+}
+
+export async function getRepeatableJobs(
+  queueName: string,
+): Promise<RepeatableJobInfo[]> {
+  const queue = getQueue(queueName);
+  const repeatableJobs = await queue.getRepeatableJobs();
+
+  return repeatableJobs.map(job => ({
+    key: job.key,
+    name: job.name,
+    id: job.id,
+    endDate: job.endDate || null,
+    tz: job.tz || null,
+    pattern: job.pattern,
+    next: job.next,
+    data: {},
+  }));
 }

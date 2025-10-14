@@ -16,6 +16,27 @@ docker run -d -p 6379:6379 redis:alpine
 
 ## Available Scripts
 
+### 0. Retry Jobs Test
+
+Simulates jobs with different retry configurations to test retry behavior.
+
+```bash
+pnpm tsx scripts/simulate-retry-jobs.ts
+```
+
+Creates jobs with:
+- Exponential and fixed backoff delays
+- Jobs that succeed after N retries
+- Jobs that fail permanently after max attempts
+- Jobs that succeed immediately
+- Real-time retry progress logging
+
+The script includes a worker that processes jobs and shows:
+- Current attempt number
+- Success/failure status
+- Retry scheduling
+- Backoff behavior
+
 ### 1. Long Running Jobs
 
 Adds jobs that take extended time to complete (10-60 minutes each).
@@ -59,6 +80,7 @@ pnpm tsx scripts/simulate-cron-jobs.ts
 ```
 
 Creates jobs like:
+- Test job (every minute) - for testing countdown/auto-refresh
 - Daily backups (2 AM daily)
 - Hourly analytics (every hour)
 - Weekly reports (Monday 9 AM)

@@ -4,7 +4,7 @@ import Redis from "ioredis";
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379/0";
 const connection = new Redis(REDIS_URL, {
   enableReadyCheck: false,
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null, // Required for BullMQ workers
 });
 
 const queue = new Queue("mixed-states-queue", { connection });
