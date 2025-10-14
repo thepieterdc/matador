@@ -1,15 +1,6 @@
 # Matador
 
-A modern BullMQ dashboard for monitoring and managing job queues. Built with React Router 7, TypeScript, and Tailwind CSS.
-
-## Features
-
-- 📊 Real-time queue monitoring
-- 🔍 Detailed job inspection with data, errors, and stack traces
-- 📈 Job statistics (waiting, active, completed, failed, delayed)
-- � Health check endpoint for monitoring
-- �🎯 Built with React Router 7 (framework mode with SSR)
-- ⚡ Fast and responsive UI with Tailwind CSS
+A modern BullMQ dashboard for monitoring and managing job queues.
 
 ## Prerequisites
 
@@ -48,20 +39,6 @@ A modern BullMQ dashboard for monitoring and managing job queues. Built with Rea
 - `pnpm start` - Start production server
 - `pnpm typecheck` - Run TypeScript type checking
 
-## Project Structure
-
-```
-app/
-├── routes/              # Route components
-│   ├── home.tsx        # Homepage
-│   ├── queues.tsx      # Queues list
-│   └── queue-detail.tsx # Queue detail view
-├── utils/              # Server-side utilities
-│   ├── redis.server.ts # Redis connection
-│   └── bullmq.server.ts # BullMQ operations
-└── routes.ts           # Route configuration
-```
-
 ## Environment Variables
 
 - `REDIS_URL` - Redis connection URL (default: `redis://localhost:6379/0`)
@@ -69,9 +46,11 @@ app/
 ## Screenshots
 
 ### Queue overview
+
 ![queue-overview.png](assets/queue-overview.png)
 
 ### Queue details
+
 ![queue-detail-1.png](assets/queue-detail-1.png)
 
 ![queue-detail-2.png](assets/queue-detail-2.png)
