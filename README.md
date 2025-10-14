@@ -66,46 +66,15 @@ app/
 
 - `REDIS_URL` - Redis connection URL (default: `redis://localhost:6379/0`)
 
-## Health Check
+## Screenshots
 
-The application provides a health check endpoint at `/health` that validates the Redis connection.
+### Queue overview
+![queue-overview.png](assets/queue-overview.png)
 
-**Endpoint:** `GET /health`
+### Queue details
+![queue-detail-1.png](assets/queue-detail-1.png)
 
-**Successful response (HTTP 200):**
-
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-10-13T12:00:00.000Z",
-  "checks": {
-    "redis": {
-      "status": "up",
-      "responseTime": "5ms"
-    }
-  }
-}
-```
-
-**Failed response (HTTP 503):**
-
-```json
-{
-  "status": "unhealthy",
-  "timestamp": "2025-10-13T12:00:00.000Z",
-  "checks": {
-    "redis": {
-      "status": "down",
-      "error": "Connection refused",
-      "responseTime": "100ms"
-    }
-  }
-}
-```
-
-### Docker Healthcheck
-
-When running in Docker, the container includes an automatic healthcheck that pings the `/health` endpoint every 30 seconds.
+![queue-detail-2.png](assets/queue-detail-2.png)
 
 ## License
 

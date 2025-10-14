@@ -136,26 +136,31 @@ export default function QueueDetail({
   useEffect(() => {
     if (cronJobs.length === 0) return;
 
-    const nextExecution = Math.min(
-      ...cronJobs
-        .map(job => job.next)
-        .filter((next): next is number => next != null),
-    );
+    const now = Date.now();
+    const upcomingExecutions = cronJobs
+      .map(job => job.next)
+      .filter((next): next is number => next != null && next > now);
 
-    if (!isFinite(nextExecution)) return;
+    if (upcomingExecutions.length === 0) return;
 
-    const timeUntilNext = nextExecution - Date.now();
+    const nextExecution = Math.min(...upcomingExecutions);
+    const timeUntilNext = nextExecution - now;
 
-    // Only set timeout if the job hasn't executed yet
-    if (timeUntilNext <= 0) return;
-
-    // Revalidate data when next job executes (add 2 seconds buffer)
-    const timeout = setTimeout(() => {
+    // Refresh immediately when job executes
+    const immediateTimeout = setTimeout(() => {
       revalidator.revalidate();
-    }, timeUntilNext + 2000);
+    }, timeUntilNext + 100); // 100ms after scheduled time
 
-    return () => clearTimeout(timeout);
-  }, [cronJobs, revalidator]); // Only re-run when cronJobs change
+    // Follow-up refresh to catch the running job
+    const followUpTimeout = setTimeout(() => {
+      revalidator.revalidate();
+    }, timeUntilNext + 1500); // 1.5s after to catch it in running state
+
+    return () => {
+      clearTimeout(immediateTimeout);
+      clearTimeout(followUpTimeout);
+    };
+  }, [cronJobs, revalidator]);
 
   const toggleCronJob = (key: string) => {
     setExpandedCronJobs(prev => {
@@ -225,8 +230,10 @@ export default function QueueDetail({
       failed: 3,
       completed: 4,
     };
-    const aPriority = statusPriority[a.status as keyof typeof statusPriority] ?? 99;
-    const bPriority = statusPriority[b.status as keyof typeof statusPriority] ?? 99;
+    const aPriority =
+      statusPriority[a.status as keyof typeof statusPriority] ?? 99;
+    const bPriority =
+      statusPriority[b.status as keyof typeof statusPriority] ?? 99;
 
     if (aPriority !== bPriority) {
       return aPriority - bPriority;
@@ -384,167 +391,42 @@ export default function QueueDetail({
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <div
+        className={`grid gap-6 ${cronJobs.length > 0 ? "lg:grid-cols-3" : ""}`}
+      >
+        <div className={cronJobs.length > 0 ? "lg:col-span-2" : ""}>
           <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Jobs</h2>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <label
-                className="block text-xs font-medium text-gray-700 mb-1"
-                htmlFor={"filterJobName"}
-              >
-                Filter by name
-              </label>
-              <div className="relative">
-                <div
-                  className="flex flex-wrap gap-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white min-h-[42px]"
-                  onClick={() => setShowSuggestions(true)}
-                >
-                  {selectedJobNames.map(name => (
-                    <span
-                      key={name}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Jobs</h2>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <label
+                    className="block text-xs font-medium text-gray-700 mb-1"
+                    htmlFor={"filterJobName"}
+                  >
+                    Filter by name
+                  </label>
+                  <div className="relative">
+                    <div
+                      className="flex flex-wrap gap-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white min-h-[42px]"
+                      onClick={() => setShowSuggestions(true)}
                     >
-                      {name}
-                      <button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          removeJobName(name);
-                        }}
-                        className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 focus:outline-none"
-                      >
-                        <svg
-                          className="w-3 h-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    id={"filterJobName"}
-                    type="text"
-                    placeholder={
-                      selectedJobNames.length === 0
-                        ? "Type to search job names..."
-                        : ""
-                    }
-                    value={jobNameInput}
-                    onChange={e => setJobNameInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => setShowSuggestions(true)}
-                    onBlur={() =>
-                      setTimeout(() => setShowSuggestions(false), 200)
-                    }
-                    className="flex-1 min-w-[120px] outline-none text-sm border-none focus:ring-0 p-0"
-                  />
-                </div>
-                {suggestions.length > 0 && showSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {suggestions.map(name => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => addJobName(name)}
-                        className="w-full px-4 py-2 text-sm text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="sm:w-48">
-              <label
-                className="block text-xs font-medium text-gray-700 mb-1"
-                htmlFor={"filterJobStatus"}
-              >
-                Filter by status
-              </label>
-              <select
-                id={"filterJobStatus"}
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[42px]"
-              >
-                <option value="all">All statuses</option>
-                <option value="waiting">Waiting</option>
-                <option value="running">Running</option>
-                <option value="delayed">Delayed</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors whitespace-nowrap min-h-[42px]"
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {sortedJobs.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <p>
-                {jobs.length === 0
-                  ? "No jobs found in this queue"
-                  : "No jobs match the filter"}
-              </p>
-            </div>
-          ) : (
-            sortedJobs.map(job => {
-              const isCronJob = !!job.repeatJobKey;
-              const isExpanded = expandedJobs.has(job.id);
-              const isRunning = job.status === "running";
-
-              return (
-                <div
-                  key={job.id}
-                  className={`border rounded-lg transition-all ${
-                    isCronJob
-                      ? "border-indigo-300 bg-indigo-50"
-                      : isRunning
-                        ? "border-green-300 bg-green-50 p-4"
-                        : "border-gray-200 p-3"
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs text-gray-600">
-                          #{job.id}
-                        </span>
-                        <span className="text-sm font-medium text-gray-900 truncate">
-                          {job.name}
-                        </span>
+                      {selectedJobNames.map(name => (
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}
+                          key={name}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
                         >
-                          {job.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-500">
-                          {new Date(job.timestamp).toLocaleString()}
-                        </span>
-                        {job.attemptsMade > 0 && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                          {name}
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              removeJobName(name);
+                            }}
+                            className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 focus:outline-none"
+                          >
                             <svg
-                              className="w-3 h-3 mr-1"
+                              className="w-3 h-3"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -553,230 +435,388 @@ export default function QueueDetail({
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={2}
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                d="M6 18L18 6M6 6l12 12"
                               />
                             </svg>
-                            Retry {job.attemptsMade}
-                          </span>
-                        )}
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        id={"filterJobName"}
+                        type="text"
+                        placeholder={
+                          selectedJobNames.length === 0
+                            ? "Type to search job names..."
+                            : ""
+                        }
+                        value={jobNameInput}
+                        onChange={e => setJobNameInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() =>
+                          setTimeout(() => setShowSuggestions(false), 200)
+                        }
+                        className="flex-1 min-w-[120px] outline-none text-sm border-none focus:ring-0 p-0"
+                      />
+                    </div>
+                    {suggestions.length > 0 && showSuggestions && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {suggestions.map(name => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => addJobName(name)}
+                            className="w-full px-4 py-2 text-sm text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                          >
+                            {name}
+                          </button>
+                        ))}
                       </div>
-                      {isRunning && (
-                        <div className="mt-2">
-                          {job.progress > 0 ? (
-                            <>
-                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                                <span>Progress</span>
-                                <span>{job.progress}%</span>
+                    )}
+                  </div>
+                </div>
+                <div className="sm:w-48">
+                  <label
+                    className="block text-xs font-medium text-gray-700 mb-1"
+                    htmlFor={"filterJobStatus"}
+                  >
+                    Filter by status
+                  </label>
+                  <select
+                    id={"filterJobStatus"}
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-h-[42px]"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="waiting">Waiting</option>
+                    <option value="running">Running</option>
+                    <option value="delayed">Delayed</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {sortedJobs.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p>
+                    {jobs.length === 0
+                      ? "No jobs found in this queue"
+                      : "No jobs match the filter"}
+                  </p>
+                </div>
+              ) : (
+                sortedJobs.map(job => {
+                  const isCronJob = !!job.repeatJobKey;
+                  const isExpanded = expandedJobs.has(job.id);
+                  const isRunning = job.status === "running";
+                  const isWaitingOrDelayed =
+                    job.status === "waiting" || job.status === "delayed";
+
+                  return (
+                    <div
+                      key={job.id}
+                      className={`border rounded transition-all ${
+                        isRunning
+                          ? "border-green-300 bg-green-50 p-4 rounded-lg"
+                          : isWaitingOrDelayed
+                            ? "border-gray-200 p-1.5 hover:bg-gray-50"
+                            : "border-gray-200 p-3"
+                      }`}
+                    >
+                      <div
+                        className={`flex items-center justify-between ${isWaitingOrDelayed ? "gap-1.5" : "gap-3"}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className={`flex items-center ${isWaitingOrDelayed ? "gap-1.5" : "gap-2"} flex-wrap`}
+                          >
+                            <span
+                              className={`font-mono ${isWaitingOrDelayed ? "text-[10px]" : "text-xs"} ${isWaitingOrDelayed ? "text-gray-400" : "text-gray-600"}`}
+                            >
+                              #{job.id}
+                            </span>
+                            <span
+                              className={`${isWaitingOrDelayed ? "text-xs" : "text-sm"} font-medium text-gray-900 truncate`}
+                            >
+                              {job.name}
+                            </span>
+                            <span
+                              className={`inline-flex items-center ${isWaitingOrDelayed ? "px-1.5 py-0" : "px-2.5 py-0.5"} rounded-full text-[10px] font-medium ${getStatusColor(job.status)}`}
+                            >
+                              {job.status}
+                            </span>
+                            {job.attemptsMade > 0 && (
+                              <span
+                                className={`inline-flex items-center ${isWaitingOrDelayed ? "px-1.5 py-0" : "px-2 py-0.5"} rounded text-[10px] font-medium bg-orange-100 text-orange-800`}
+                              >
+                                <svg
+                                  className={`${isWaitingOrDelayed ? "w-2 h-2" : "w-3 h-3"} ${isWaitingOrDelayed ? "" : "mr-1"}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                  />
+                                </svg>
+                                {isWaitingOrDelayed
+                                  ? ""
+                                  : ` ${job.attemptsMade}`}
+                              </span>
+                            )}
+                            <span
+                              className={`${isWaitingOrDelayed ? "text-[10px]" : "text-xs"} text-gray-400`}
+                            >
+                              enqueued at{" "}
+                              {isWaitingOrDelayed
+                                ? new Date(job.timestamp).toLocaleTimeString()
+                                : new Date(job.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          {isRunning && (
+                            <div className="mt-2">
+                              {job.progress > 0 ? (
+                                <>
+                                  <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                    <span>Progress</span>
+                                    <span>{job.progress}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                    <div
+                                      className="bg-green-500 h-2 rounded-full transition-all duration-300 ease-out"
+                                      style={{ width: `${job.progress}%` }}
+                                    ></div>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                    <span>Processing</span>
+                                    <span className="text-green-600 font-medium">
+                                      Running...
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden relative">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-60 animate-[shimmer_2s_infinite]"></div>
+                                    <style>{`
+                                  @keyframes shimmer {
+                                    0% { transform: translateX(-100%); }
+                                    100% { transform: translateX(100%); }
+                                  }
+                                `}</style>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div
+                          className={`flex items-center ${isWaitingOrDelayed ? "gap-0.5" : "gap-2"}`}
+                        >
+                          {!isRunning && !isCronJob && (
+                            <button
+                              onClick={() => toggleJobData(job.id)}
+                              className={`${isWaitingOrDelayed ? "text-gray-400 hover:text-gray-700 p-0.5" : "text-gray-600 hover:text-gray-900"} transition-colors`}
+                              title={
+                                isExpanded ? "Hide details" : "Show details"
+                              }
+                            >
+                              <svg
+                                className={`${isWaitingOrDelayed ? "w-3 h-3" : "w-4 h-4"} transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </button>
+                          )}
+                          {job.status === "failed" && (
+                            <Form method="post">
+                              <input
+                                type="hidden"
+                                name="action"
+                                value="retry"
+                              />
+                              <input
+                                type="hidden"
+                                name="jobId"
+                                value={job.id}
+                              />
+                              <button
+                                type="submit"
+                                className="text-xs text-blue-600 hover:text-blue-800 px-1"
+                              >
+                                Retry
+                              </button>
+                            </Form>
+                          )}
+                          {(job.status === "waiting" ||
+                            job.status === "running" ||
+                            job.status === "delayed") &&
+                            !isCronJob && (
+                              <Form method="post">
+                                <input
+                                  type="hidden"
+                                  name="action"
+                                  value="remove"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="jobId"
+                                  value={job.id}
+                                />
+                                <button
+                                  type="submit"
+                                  className={`${isWaitingOrDelayed ? "text-xs text-red-500 hover:text-red-700 px-1 py-0.5" : "text-xs text-red-600 hover:text-red-800 px-1"} transition-colors`}
+                                  title={
+                                    job.status === "running"
+                                      ? "Cancel job"
+                                      : "Remove job"
+                                  }
+                                >
+                                  {job.status === "running"
+                                    ? "Cancel"
+                                    : "Remove"}
+                                </button>
+                              </Form>
+                            )}
+                        </div>
+                      </div>
+
+                      {/* Always show data for running jobs, collapsed for others */}
+                      {(isRunning || isExpanded) && (
+                        <div className="mt-3 space-y-2">
+                          {/* Show retry information if job has been retried */}
+                          {job.attemptsMade > 0 && (
+                            <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg
+                                  className="w-4 h-4 text-orange-600"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                  />
+                                </svg>
+                                <div className="text-xs font-semibold text-orange-800">
+                                  Retry Information
+                                </div>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-green-500 h-2 rounded-full transition-all"
-                                  style={{ width: `${job.progress}%` }}
-                                ></div>
+                              <div className="text-xs text-orange-700 space-y-1">
+                                <div>
+                                  Current attempt:{" "}
+                                  <span className="font-semibold">
+                                    {job.attemptsMade}
+                                  </span>
+                                </div>
+                                {job.status === "failed" && (
+                                  <div className="text-red-700 font-medium mt-1">
+                                    Job has failed permanently
+                                  </div>
+                                )}
+                                {(job.status === "waiting" ||
+                                  job.status === "delayed") &&
+                                  job.attemptsMade > 0 && (
+                                    <div className="text-orange-800 font-medium mt-1">
+                                      ⏳ Waiting to retry...
+                                    </div>
+                                  )}
                               </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                                <span>Processing</span>
-                                <span className="text-green-600 font-medium">
-                                  Running...
-                                </span>
+                            </div>
+                          )}
+
+                          <div className="bg-gray-50 rounded p-3">
+                            <div className="text-xs text-gray-600 mb-1">
+                              Job Data:
+                            </div>
+                            <pre className="text-xs text-gray-800 font-mono overflow-x-auto">
+                              {JSON.stringify(job.data, null, 2)}
+                            </pre>
+                          </div>
+                          {job.failedReason && (
+                            <div className="bg-red-50 border border-red-200 rounded p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg
+                                  className="w-4 h-4 text-red-600"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                                <div className="text-xs font-semibold text-red-600">
+                                  Error Details
+                                  {job.attemptsMade > 0 &&
+                                    job.status !== "failed" && (
+                                      <span className="ml-2 text-orange-600">
+                                        (Attempt {job.attemptsMade})
+                                      </span>
+                                    )}
+                                </div>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                                <div className="bg-green-500 h-2 rounded-full animate-pulse w-full opacity-50"></div>
+                              <div className="text-sm text-red-800">
+                                {job.failedReason}
                               </div>
-                            </>
+                            </div>
+                          )}
+                          {job.stacktrace && job.stacktrace.length > 0 && (
+                            <div className="bg-red-50 border border-red-200 rounded p-3">
+                              <div className="text-xs text-red-600 mb-1">
+                                Stack Trace:
+                              </div>
+                              <pre className="text-xs text-red-800 font-mono overflow-x-auto">
+                                {job.stacktrace.join("\n")}
+                              </pre>
+                            </div>
+                          )}
+                          {job.returnvalue && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
+                              <div className="text-xs text-emerald-600 mb-1">
+                                Return Value:
+                              </div>
+                              <pre className="text-xs text-emerald-800 font-mono overflow-x-auto">
+                                {JSON.stringify(job.returnvalue, null, 2)}
+                              </pre>
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2 ml-2">
-                      {!isRunning && !isCronJob && (
-                        <button
-                          onClick={() => toggleJobData(job.id)}
-                          className="text-xs text-gray-600 hover:text-gray-900"
-                        >
-                          <svg
-                            className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
-                          </svg>
-                        </button>
-                      )}
-                      {job.status === "failed" && (
-                        <Form method="post">
-                          <input type="hidden" name="action" value="retry" />
-                          <input type="hidden" name="jobId" value={job.id} />
-                          <button
-                            type="submit"
-                            className="text-xs text-blue-600 hover:text-blue-800"
-                          >
-                            Retry
-                          </button>
-                        </Form>
-                      )}
-                      {(job.status === "waiting" ||
-                        job.status === "running" ||
-                        job.status === "delayed") &&
-                        !isCronJob && (
-                          <Form method="post">
-                            <input type="hidden" name="action" value="remove" />
-                            <input type="hidden" name="jobId" value={job.id} />
-                            <button
-                              type="submit"
-                              className="text-xs text-red-600 hover:text-red-800"
-                            >
-                              {job.status === "running" ? "Cancel" : "Remove"}
-                            </button>
-                          </Form>
-                        )}
-                    </div>
-                  </div>
-
-                  {/* Always show data for running jobs, collapsed for others */}
-                  {(isRunning || isExpanded) && (
-                    <div className="mt-3 space-y-2">
-                      {/* Show retry information if job has been retried */}
-                      {job.attemptsMade > 0 && (
-                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg
-                              className="w-4 h-4 text-orange-600"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                              />
-                            </svg>
-                            <div className="text-xs font-semibold text-orange-800">
-                              Retry Information
-                            </div>
-                          </div>
-                          <div className="text-xs text-orange-700 space-y-1">
-                            <div>
-                              Current attempt: <span className="font-semibold">{job.attemptsMade}</span>
-                            </div>
-                            {job.status === "failed" && (
-                              <div className="text-red-700 font-medium mt-1">
-                                Job has failed permanently
-                              </div>
-                            )}
-                            {(job.status === "waiting" || job.status === "delayed") &&
-                              job.attemptsMade > 0 && (
-                                <div className="text-orange-800 font-medium mt-1">
-                                  ⏳ Waiting to retry...
-                                </div>
-                              )}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="bg-gray-50 rounded p-3">
-                        <div className="text-xs text-gray-600 mb-1">
-                          Job Data:
-                        </div>
-                        <pre className="text-xs text-gray-800 font-mono overflow-x-auto">
-                          {JSON.stringify(job.data, null, 2)}
-                        </pre>
-                      </div>
-                      {job.failedReason && (
-                        <div className="bg-red-50 border border-red-200 rounded p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg
-                              className="w-4 h-4 text-red-600"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <div className="text-xs font-semibold text-red-600">
-                              Error Details
-                              {job.attemptsMade > 0 && job.status !== "failed" && (
-                                <span className="ml-2 text-orange-600">
-                                  (Attempt {job.attemptsMade})
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-sm text-red-800">
-                            {job.failedReason}
-                          </div>
-                        </div>
-                      )}
-                      {job.stacktrace && job.stacktrace.length > 0 && (
-                        <div className="bg-red-50 border border-red-200 rounded p-3">
-                          <div className="text-xs text-red-600 mb-1">
-                            Stack Trace:
-                          </div>
-                          <pre className="text-xs text-red-800 font-mono overflow-x-auto">
-                            {job.stacktrace.join("\n")}
-                          </pre>
-                        </div>
-                      )}
-                      {job.returnvalue && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
-                          <div className="text-xs text-emerald-600 mb-1">
-                            Return Value:
-                          </div>
-                          <pre className="text-xs text-emerald-800 font-mono overflow-x-auto">
-                            {JSON.stringify(job.returnvalue, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Cron Jobs Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Cron Jobs
-            </h2>
-            {cronJobs.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <svg
-                  className="w-12 h-12 mx-auto mb-3 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <p className="text-sm">No cron jobs</p>
-              </div>
-            ) : (
+        {/* Cron Jobs Sidebar - Only show if there are cron jobs */}
+        {cronJobs.length > 0 && (
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Cron Jobs
+              </h2>
               <div className="space-y-3">
                 {sortedCronJobs.map(cronJob => {
                   const isExpanded = expandedCronJobs.has(cronJob.key);
@@ -789,10 +829,10 @@ export default function QueueDetail({
                   return (
                     <div
                       key={cronJob.key}
-                      className={`border rounded-lg p-3 transition-all ${
+                      className={`border rounded-lg transition-all ${
                         isRunningNow
-                          ? "border-green-400 bg-green-50"
-                          : "border-gray-200 hover:border-indigo-300"
+                          ? "border-green-400 bg-green-50 p-3"
+                          : "border-gray-200 hover:border-indigo-300 p-3"
                       }`}
                     >
                       <div className="mb-2">
@@ -860,9 +900,9 @@ export default function QueueDetail({
                   );
                 })}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </main>
   );
