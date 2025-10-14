@@ -75,16 +75,16 @@ async function simulateActiveJobs() {
     );
   }
 
-  console.log(`\n✓ Added 15 jobs that will be actively processing`);
-  console.log(`  Worker concurrency: 10`);
-  console.log(`  Jobs will complete over the next 2-4 minutes`);
+  console.log("\n✓ Added 15 jobs that will be actively processing");
+  console.log("  Worker concurrency: 10");
+  console.log("  Jobs will complete over the next 2-4 minutes");
 
   const stats = {
     waiting: await queue.getWaitingCount(),
     active: await queue.getActiveCount(),
   };
 
-  console.log(`\nCurrent queue state:`);
+  console.log("\nCurrent queue state:");
   console.log(`  Waiting: ${stats.waiting}`);
   console.log(`  Active: ${stats.active}`);
 

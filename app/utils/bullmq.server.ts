@@ -105,11 +105,12 @@ export async function getQueueJobs(
     case "failed":
       jobs = await queue.getFailed(start, end);
       break;
-    case "delayed":
+    case "delayed": {
       // Get all delayed jobs and filter out repeatable jobs
       const allDelayed = await queue.getDelayed(start, end);
       jobs = allDelayed.filter(job => !job.opts?.repeat && !job.repeatJobKey);
       break;
+    }
     default:
       jobs = await queue.getWaiting(start, end);
   }

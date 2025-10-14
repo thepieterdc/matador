@@ -106,7 +106,9 @@ async function simulateRetryJobs() {
     await queue.add(jobConfig.name, jobConfig.data, jobConfig.opts);
     console.log(`✓ Added job: ${jobConfig.name}`);
     console.log(`  Max attempts: ${jobConfig.opts.attempts}`);
-    console.log(`  Backoff: ${jobConfig.opts.backoff.type} (${jobConfig.opts.backoff.delay}ms)`);
+    console.log(
+      `  Backoff: ${jobConfig.opts.backoff.type} (${jobConfig.opts.backoff.delay}ms)`,
+    );
     console.log(`  Description: ${jobConfig.data.description}\n`);
   }
 
@@ -144,7 +146,7 @@ async function simulateRetryJobs() {
       // Simulate processing time
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      console.log(`  ✓ Succeeded!\n`);
+      console.log("  ✓ Succeeded!\n");
       return {
         status: "success",
         attempt: job.attemptsMade,
@@ -163,7 +165,7 @@ async function simulateRetryJobs() {
     );
   });
 
-  worker.on("failed", (job, err) => {
+  worker.on("failed", job => {
     if (job) {
       const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 1);
       if (isLastAttempt) {

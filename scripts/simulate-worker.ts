@@ -16,8 +16,10 @@ console.log(`Processing time per job: ${processingTime}ms`);
 const worker = new Worker(
   queueName,
   async job => {
-    console.log(`\n[${new Date().toISOString()}] Processing job: ${job.name} (ID: ${job.id})`);
-    console.log(`Data:`, JSON.stringify(job.data, null, 2));
+    console.log(
+      `\n[${new Date().toISOString()}] Processing job: ${job.name} (ID: ${job.id})`,
+    );
+    console.log("Data:", JSON.stringify(job.data, null, 2));
 
     // Randomly decide whether to report progress (50% chance)
     const reportProgress = Math.random() > 0.5;
@@ -25,13 +27,15 @@ const worker = new Worker(
     if (reportProgress) {
       const steps = 10;
       for (let i = 1; i <= steps; i++) {
-        await new Promise(resolve => setTimeout(resolve, processingTime / steps));
+        await new Promise(resolve =>
+          setTimeout(resolve, processingTime / steps),
+        );
         const progress = (i / steps) * 100;
         await job.updateProgress(progress);
         console.log(`  Progress: ${progress.toFixed(0)}%`);
       }
     } else {
-      console.log(`  Processing (no progress updates)...`);
+      console.log("  Processing (no progress updates)...");
       await new Promise(resolve => setTimeout(resolve, processingTime));
     }
 
