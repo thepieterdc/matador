@@ -32,25 +32,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-gray-50 min-h-screen flex flex-col">
-        <nav className="bg-white shadow-sm border-b">
+      <body className="bg-gray-50 dark:bg-gray-900 min-h-screen flex flex-col">
+        <nav className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <Link
                 to="/"
-                className="text-2xl font-bold text-gray-900 hover:text-gray-700 flex items-center gap-2"
+                className="text-2xl font-bold text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-2"
               >
-                <span className="text-red-600">🎯</span>
+                <span className="text-red-600 dark:text-red-500">🎯</span>
                 <span>
-                  Mat<span className="text-red-600">🐂</span>dor
+                  Mat<span className="text-red-600 dark:text-red-500">🐂</span>dor
                 </span>
               </Link>
             </div>
           </div>
         </nav>
         <div className="flex-1">{children}</div>
-        <footer className="bg-white border-t border-gray-200 py-4 mt-8">
-          <div className="container mx-auto px-6 text-center text-sm text-gray-600">
+        <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-8">
+          <div className="container mx-auto px-6 text-center text-sm text-gray-600 dark:text-gray-400">
             made with 🍕
           </div>
         </footer>
@@ -87,11 +87,11 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   return (
     <main className="container mx-auto p-6">
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h1 className="text-2xl font-bold text-red-700 mb-2">{message}</h1>
-        <p className="text-red-600 mb-4">{details}</p>
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+        <h1 className="text-2xl font-bold text-red-700 dark:text-red-400 mb-2">{message}</h1>
+        <p className="text-red-600 dark:text-red-400 mb-4">{details}</p>
         {stack && (
-          <pre className="bg-red-100 p-4 rounded overflow-auto text-sm">
+          <pre className="bg-red-100 dark:bg-red-900/30 p-4 rounded overflow-auto text-sm text-red-900 dark:text-red-200">
             <code>{stack}</code>
           </pre>
         )}
