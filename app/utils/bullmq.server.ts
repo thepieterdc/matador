@@ -36,7 +36,7 @@ export async function getQueueStats(queueName: string): Promise<QueueStats> {
   const queue = getQueue(queueName);
   const [waiting, running, completed, failed, delayedCount, paused] =
     await Promise.all([
-      queue.getWaitingCount(),
+      queue.getJobCountByTypes("waiting", "prioritized"),
       queue.getActiveCount(), // BullMQ uses "active" but we call it "running"
       queue.getCompletedCount(),
       queue.getFailedCount(),
@@ -94,7 +94,10 @@ export async function getQueueJobs(
   let jobs;
   switch (status) {
     case "waiting":
-      jobs = await queue.getWaiting(start, end);
+      jobs = [
+        ...(await queue.getWaiting(start, end)),
+        ...(await queue.getPrioritized(start, end)),
+      ];
       break;
     case "running":
       jobs = await queue.getActive(start, end);
@@ -112,7 +115,10 @@ export async function getQueueJobs(
       break;
     }
     default:
-      jobs = await queue.getWaiting(start, end);
+      jobs = [
+        ...(await queue.getWaiting(start, end)),
+        ...(await queue.getPrioritized(start, end)),
+      ];
   }
 
   // Get repeatable jobs info for matching with cron patterns

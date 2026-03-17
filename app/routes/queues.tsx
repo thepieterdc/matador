@@ -13,7 +13,8 @@ export async function loader() {
       queueNames.map(name => getQueueStats(name)),
     );
     return { queues, error: null };
-  } catch {
+  } catch (e) {
+    console.error(`Error fetching queue stats: ${e}`);
     return {
       queues: [],
       error: "Failed to connect to Redis. Please check your connection.",
@@ -26,8 +27,12 @@ export default function Queues({ loaderData }: Route.ComponentProps) {
   return (
     <main className="container mx-auto px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Job Queues</h1>
-        <p className="text-gray-600 dark:text-gray-400">Monitor and manage BullMQ job queues</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          Job Queues
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Monitor and manage BullMQ job queues
+        </p>
       </div>
 
       {error && (
@@ -81,7 +86,10 @@ export default function Queues({ loaderData }: Route.ComponentProps) {
                     const totalJobs =
                       queue.waiting + queue.running + queue.delayed;
                     return (
-                      <tr key={queue.name} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <tr
+                        key={queue.name}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Link
                             to={`/queues/${queue.name}`}
