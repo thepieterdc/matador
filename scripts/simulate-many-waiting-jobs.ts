@@ -73,7 +73,9 @@ async function addManyJobs() {
   for (let i = 0; i < jobs.length; i += batchSize) {
     const batch = jobs.slice(i, i + batchSize);
     await queue.addBulk(batch);
-    console.log(`✓ Added jobs ${i + 1}-${Math.min(i + batchSize, jobs.length)}`);
+    console.log(
+      `✓ Added jobs ${i + 1}-${Math.min(i + batchSize, jobs.length)}`,
+    );
   }
 
   const stats = {

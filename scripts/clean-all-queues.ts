@@ -50,15 +50,17 @@ async function cleanAllQueues() {
       await queue.clean(0, 10000, "completed");
       await queue.clean(0, 10000, "failed");
 
-      // Remove all repeatable jobs
-      const repeatableJobs = await queue.getRepeatableJobs();
+      // Remove all job schedulers
+      const repeatableJobs = await queue.getJobSchedulers();
       for (const job of repeatableJobs) {
-        await queue.removeRepeatableByKey(job.key);
+        await queue.removeJobScheduler(job.key);
       }
 
       console.log(`✓ Cleaned queue: ${queueName}`);
-      console.log(`    Removed: ${stats.waiting} waiting, ${stats.active} active, ` +
-        `${stats.completed} completed, ${stats.failed} failed, ${stats.delayed} delayed`);
+      console.log(
+        `    Removed: ${stats.waiting} waiting, ${stats.active} active, ` +
+          `${stats.completed} completed, ${stats.failed} failed, ${stats.delayed} delayed`,
+      );
       if (repeatableJobs.length > 0) {
         console.log(`    Removed ${repeatableJobs.length} repeatable jobs`);
       }

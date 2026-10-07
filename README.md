@@ -4,8 +4,8 @@ A modern BullMQ dashboard for monitoring and managing job queues.
 
 ## Prerequisites
 
-- Node.js 18+ or compatible runtime
-- pnpm 10.18.2+
+- Node.js 22.22+ or compatible runtime
+- pnpm 12.9.1+
 - Redis server (for BullMQ queues)
 
 ## Quick Start

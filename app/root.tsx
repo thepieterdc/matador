@@ -42,7 +42,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 <span className="text-red-600 dark:text-red-500">🎯</span>
                 <span>
-                  Mat<span className="text-red-600 dark:text-red-500">🐂</span>dor
+                  Mat<span className="text-red-600 dark:text-red-500">🐂</span>
+                  dor
                 </span>
               </Link>
             </div>
@@ -88,7 +89,9 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return (
     <main className="container mx-auto p-6">
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-        <h1 className="text-2xl font-bold text-red-700 dark:text-red-400 mb-2">{message}</h1>
+        <h1 className="text-2xl font-bold text-red-700 dark:text-red-400 mb-2">
+          {message}
+        </h1>
         <p className="text-red-600 dark:text-red-400 mb-4">{details}</p>
         {stack && (
           <pre className="bg-red-100 dark:bg-red-900/30 p-4 rounded overflow-auto text-sm text-red-900 dark:text-red-200">

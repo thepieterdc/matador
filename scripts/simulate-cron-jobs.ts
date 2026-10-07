@@ -107,14 +107,15 @@ async function addCronJobs() {
   ];
 
   for (const job of cronJobs) {
-    await queue.add(job.name, job.data, {
-      repeat: job.repeat,
+    await queue.upsertJobScheduler(job.name, job.repeat, {
+      name: job.name,
+      data: job.data,
     });
     console.log(`✓ Added repeatable job: ${job.name} (${job.repeat.pattern})`);
   }
 
   // Get repeatable jobs info
-  const repeatableJobs = await queue.getRepeatableJobs();
+  const repeatableJobs = await queue.getJobSchedulers();
 
   console.log(`\n✓ Successfully added ${cronJobs.length} repeatable jobs`);
   console.log(`  Total repeatable jobs in queue: ${repeatableJobs.length}`);
