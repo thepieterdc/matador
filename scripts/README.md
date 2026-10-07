@@ -5,11 +5,13 @@ This directory contains scripts to simulate various BullMQ queue scenarios for t
 ## Prerequisites
 
 Make sure Redis is running:
+
 ```bash
 redis-server
 ```
 
 Or use Docker:
+
 ```bash
 docker run -d -p 6379:6379 redis:alpine
 ```
@@ -25,6 +27,7 @@ pnpm tsx scripts/simulate-retry-jobs.ts
 ```
 
 Creates jobs with:
+
 - Exponential and fixed backoff delays
 - Jobs that succeed after N retries
 - Jobs that fail permanently after max attempts
@@ -32,6 +35,7 @@ Creates jobs with:
 - Real-time retry progress logging
 
 The script includes a worker that processes jobs and shows:
+
 - Current attempt number
 - Success/failure status
 - Retry scheduling
@@ -46,6 +50,7 @@ pnpm tsx scripts/simulate-long-running-jobs.ts
 ```
 
 Creates jobs like:
+
 - Video processing (10 min)
 - Report generation (15 min)
 - Batch email sending (20 min)
@@ -65,6 +70,7 @@ pnpm tsx scripts/simulate-many-waiting-jobs.ts 1000
 ```
 
 Creates realistic jobs:
+
 - Email sending
 - Order processing
 - Thumbnail generation
@@ -80,6 +86,7 @@ pnpm tsx scripts/simulate-cron-jobs.ts
 ```
 
 Creates jobs like:
+
 - Test job (every minute) - for testing countdown/auto-refresh
 - Daily backups (2 AM daily)
 - Hourly analytics (every hour)
@@ -103,6 +110,7 @@ pnpm tsx scripts/simulate-worker.ts scheduled-jobs 5000
 ```
 
 Features:
+
 - Configurable processing time per job
 - Progress updates (0-100%)
 - Concurrent processing (2 jobs at a time)
@@ -117,6 +125,7 @@ pnpm tsx scripts/simulate-mixed-states.ts
 ```
 
 Creates:
+
 - 10 delayed jobs (scheduled 1-10 minutes ahead)
 - 25 waiting jobs
 - 15 completed jobs
@@ -132,6 +141,7 @@ pnpm tsx scripts/simulate-active-jobs.ts
 ```
 
 Features:
+
 - Creates 15 jobs with varying durations (2-4 minutes)
 - Worker processes up to 10 jobs simultaneously
 - Progress updates every 25%
@@ -146,6 +156,7 @@ pnpm tsx scripts/clean-all-queues.ts
 ```
 
 Removes:
+
 - All waiting jobs
 - All active jobs
 - All completed jobs

@@ -57,8 +57,10 @@ async function cleanAllQueues() {
       }
 
       console.log(`✓ Cleaned queue: ${queueName}`);
-      console.log(`    Removed: ${stats.waiting} waiting, ${stats.active} active, ` +
-        `${stats.completed} completed, ${stats.failed} failed, ${stats.delayed} delayed`);
+      console.log(
+        `    Removed: ${stats.waiting} waiting, ${stats.active} active, ` +
+          `${stats.completed} completed, ${stats.failed} failed, ${stats.delayed} delayed`,
+      );
       if (repeatableJobs.length > 0) {
         console.log(`    Removed ${repeatableJobs.length} repeatable jobs`);
       }

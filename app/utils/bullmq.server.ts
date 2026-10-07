@@ -46,9 +46,7 @@ export async function getQueueStats(queueName: string): Promise<QueueStats> {
 
   // Get delayed jobs and filter out repeatable jobs
   const delayedJobs = await queue.getDelayed(0, delayedCount);
-  const nonRepeatableDelayed = delayedJobs.filter(
-    job => !job.repeatJobKey,
-  );
+  const nonRepeatableDelayed = delayedJobs.filter(job => !job.repeatJobKey);
 
   return {
     name: queueName,

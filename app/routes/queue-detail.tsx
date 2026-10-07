@@ -292,8 +292,12 @@ export default function QueueDetail({
           </svg>
           Back to Queues
         </Link>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{queueName}</h1>
-        <p className="text-gray-600 dark:text-gray-400">Manage jobs in this queue</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          {queueName}
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Manage jobs in this queue
+        </p>
       </div>
 
       {error && (
@@ -340,7 +344,9 @@ export default function QueueDetail({
                   d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Running</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Running
+              </div>
             </div>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {stats.running}
@@ -361,7 +367,9 @@ export default function QueueDetail({
                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Waiting</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Waiting
+              </div>
             </div>
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {stats.waiting}
@@ -382,7 +390,9 @@ export default function QueueDetail({
                   d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Delayed</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Delayed
+              </div>
             </div>
             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {stats.delayed}
@@ -397,7 +407,9 @@ export default function QueueDetail({
         <div className={cronJobs.length > 0 ? "lg:col-span-2" : ""}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
             <div className="mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Jobs</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Jobs
+              </h2>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1">
                   <label
