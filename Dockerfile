@@ -18,7 +18,7 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-COPY ./package.json pnpm-lock.yaml /app/
+COPY ./package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
 WORKDIR /app
 RUN pnpm install --frozen-lockfile --prod
 
@@ -44,7 +44,7 @@ RUN apk add --no-cache curl
 # Create a non-root user (Alpine uses addgroup and adduser)
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY ./package.json pnpm-lock.yaml /app/
+COPY ./package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
 COPY --from=production-dependencies-env /app/node_modules /app/node_modules
 COPY --from=build-env /app/build /app/build
 WORKDIR /app

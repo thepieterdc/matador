@@ -50,10 +50,10 @@ async function cleanAllQueues() {
       await queue.clean(0, 10000, "completed");
       await queue.clean(0, 10000, "failed");
 
-      // Remove all repeatable jobs
-      const repeatableJobs = await queue.getRepeatableJobs();
+      // Remove all job schedulers
+      const repeatableJobs = await queue.getJobSchedulers();
       for (const job of repeatableJobs) {
-        await queue.removeRepeatableByKey(job.key);
+        await queue.removeJobScheduler(job.key);
       }
 
       console.log(`✓ Cleaned queue: ${queueName}`);

@@ -47,7 +47,7 @@ export async function getQueueStats(queueName: string): Promise<QueueStats> {
   // Get delayed jobs and filter out repeatable jobs
   const delayedJobs = await queue.getDelayed(0, delayedCount);
   const nonRepeatableDelayed = delayedJobs.filter(
-    job => !job.opts?.repeat && !job.repeatJobKey,
+    job => !job.repeatJobKey,
   );
 
   return {
@@ -111,7 +111,7 @@ export async function getQueueJobs(
     case "delayed": {
       // Get all delayed jobs and filter out repeatable jobs
       const allDelayed = await queue.getDelayed(start, end);
-      jobs = allDelayed.filter(job => !job.opts?.repeat && !job.repeatJobKey);
+      jobs = allDelayed.filter(job => !job.repeatJobKey);
       break;
     }
     default:
@@ -121,12 +121,12 @@ export async function getQueueJobs(
       ];
   }
 
-  // Get repeatable jobs info for matching with cron patterns
-  const repeatableJobs = await queue.getRepeatableJobs();
-  const repeatableMap = new Map(repeatableJobs.map(r => [r.key, r]));
+  // Get job schedulers info for matching with cron patterns
+  const jobSchedulers = await queue.getJobSchedulers();
+  const repeatableMap = new Map(jobSchedulers.map(r => [r.key, r]));
 
   return jobs.map(job => {
-    const repeatKey = job.opts?.repeat?.key || job.repeatJobKey;
+    const repeatKey = job.repeatJobKey;
     const repeatableInfo = repeatKey ? repeatableMap.get(repeatKey) : null;
 
     return {
@@ -159,7 +159,7 @@ export async function removeJob(
     // Extract the repeat key from the job ID
     const parts = jobId.split(":");
     const repeatKey = parts[1];
-    await queue.removeRepeatableByKey(repeatKey);
+    await queue.removeJobScheduler(repeatKey);
   } else {
     // Regular job removal
     const job = await queue.getJob(jobId);
@@ -216,9 +216,9 @@ export async function getRepeatableJobs(
   queueName: string,
 ): Promise<RepeatableJobInfo[]> {
   const queue = getQueue(queueName);
-  const repeatableJobs = await queue.getRepeatableJobs();
+  const jobSchedulers = await queue.getJobSchedulers();
 
-  return repeatableJobs.map(job => ({
+  return jobSchedulers.map(job => ({
     key: job.key,
     name: job.name,
     id: job.id,
